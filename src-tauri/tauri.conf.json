@@ -46,6 +46,9 @@
   "version": "1.0.0",
   "identifier": "com.KnightRlex.SQDisk",
   "plugins": {
+    "fs": {
+      "requireLiteralLeadingDot": false
+    },
     "shell": {
       "open": true
     }    
