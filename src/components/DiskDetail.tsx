@@ -17,8 +17,6 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 
-import { remove } from "@tauri-apps/plugin-fs";
-
 import { useTranslation } from "react-i18next";
 import { SelectionArea, SelectionEvent } from "@viselect/react";
 
@@ -382,9 +380,8 @@ const Scanning = () => {
                                   .replace("\\/", "/")
                                   .replace("\\", "/");
                                 try {
-                                  await remove(nodePath, { recursive: true }).catch((err) =>
-                                    console.error(err)
-                                  );
+                                  await invoke("remove_path", { path: nodePath });
+
                                   successful.push(node);
                                   setDeleteState((prev) => ({
                                     ...prev,
