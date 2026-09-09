@@ -20,8 +20,16 @@ import { emit, listen } from "@tauri-apps/api/event";
 
 import { useTranslation } from "react-i18next";
 import { SelectionArea, SelectionEvent } from "@viselect/react";
+import { Snackbar, SnackbarContainer, SnackbarSeverity } from "./Snackbar";
+import { ErrorDialog } from "./ErrorDialog";
 
 (window as any).LockDNDEdgeScrolling = () => true;
+
+export type DeletionErrorState = {
+  diskItem: D3HierarchyDiskItem;
+  error: unknown;
+  isOpen: boolean;
+};
 
 const Scanning = () => {
   let {
@@ -53,6 +61,7 @@ const Scanning = () => {
   const [deleteList, setDeleteList] = useState<Array<D3HierarchyDiskItem>>([]);
   const deleteMap = useRef<Map<string, boolean>>(new Map());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [errors, setErrors] = useState<Map<number, DeletionErrorState>>(new Map());
 
   const selectedIdsRef = useRef(selectedIds);
   useEffect(() => {
@@ -132,6 +141,25 @@ const Scanning = () => {
     const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
     const secs = (seconds % 60).toString().padStart(2, '0');
     return `${mins}:${secs}`;
+  };
+
+  const setDialogVisibility = (key: number, isOpen: boolean) => {
+    setErrors((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(key);
+      if (existing) {
+        next.set(key, { ...existing, isOpen });
+      }
+      return next;
+    });
+  };
+
+  const removeError = (key: number) => {
+    setErrors((prev) => {
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -276,7 +304,32 @@ const Scanning = () => {
           >
             <div className="flex flex-1">
               <div id="d3-tooltip" className="d3-tooltip" style={{ display: 'none' }}></div>
-              <div className="chartpartition flex-1 flex justify-items-center items-center">
+              <div className="chartpartition relative flex-1 flex justify-items-center items-center">
+                {errors.size > 0 && (
+                  <SnackbarContainer>
+                    {Array.from(errors.entries()).map(([key, e]) => (
+                      <Snackbar
+                        key={key}
+                        message={t('diskDetail.deletionFailure', { file: e.diskItem.data.name })}
+                        severity={SnackbarSeverity.ERROR}
+                        onClick={() => setDialogVisibility(key, true)}
+                        onTimeout={() => removeError(key)}
+                      />
+                    ))}
+                  </SnackbarContainer>
+                )}
+                {Array.from(errors.entries()).map(([key, e]) => {
+                  if (!e.isOpen) return null;
+
+                  return (
+                    <ErrorDialog
+                      key={key}
+                      title={t('diskDetail.deletionFailure', { file: e.diskItem.data.name })}
+                      error={e.error}
+                      onClose={() => removeError(key)}
+                    />
+                  );
+                })}
                 <svg
                   ref={svgRef}
                   width={"100%"}
@@ -376,6 +429,7 @@ const Scanning = () => {
                                 current: 0,
                               });
                               let successful: Array<D3HierarchyDiskItem> = [];
+                              let errorKey = 0;
                               for (let node of deleteList) {
                                 const nodePath = buildFullPath(node)
                                   .replace("\\/", "/")
@@ -389,6 +443,8 @@ const Scanning = () => {
                                     current: prev.current + 1,
                                   }));
                                 } catch (e) {
+                                  const key = Date.now();
+                                  setErrors((prev) => new Map(prev).set(key, { diskItem: node, error: e, isOpen: false }));
                                   console.error(e);
                                 }
                               }
